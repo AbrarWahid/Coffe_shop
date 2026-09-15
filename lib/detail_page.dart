@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'basket_page.dart';
 
 class DetailPage extends StatefulWidget {
   final String title;
@@ -226,7 +227,12 @@ class _DetailPageState extends State<DetailPage> {
                       const SizedBox(width: 24),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const BasketPage()),
+                            );
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF5A2A82), // Primary Theme color
                             padding: const EdgeInsets.symmetric(vertical: 18),

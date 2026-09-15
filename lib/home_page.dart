@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'detail_page.dart';
+import 'basket_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -52,19 +54,27 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                     // Basket Icon
-                    Column(
-                      children: [
-                        const FaIcon(FontAwesomeIcons.basketShopping, color: Color(0xFF5A2A82), size: 24),
-                        const SizedBox(height: 4),
-                        Text(
-                          'My basket',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            color: const Color(0xFF2C1E4A),
-                            fontWeight: FontWeight.w500,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const BasketPage()),
+                        );
+                      },
+                      child: Column(
+                        children: [
+                          const FaIcon(FontAwesomeIcons.basketShopping, color: Color(0xFF5A2A82), size: 24),
+                          const SizedBox(height: 4),
+                          Text(
+                            'My basket',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: const Color(0xFF2C1E4A),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
