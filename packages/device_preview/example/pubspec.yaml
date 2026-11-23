@@ -1,0 +1,27 @@
+name: device_preview_example
+description: >-
+  Example app for package:device_preview — shows live device characteristics
+  and demonstrates the programmatic simulation API.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The showcase demo localizes itself into every locale the panel offers.
+  flutter_localizations:
+    sdk: flutter
+  device_preview:
+    path: ../
+  intl: any # pinned by flutter_localizations
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

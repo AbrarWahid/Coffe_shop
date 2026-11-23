@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'register_page.dart';
-import 'home_page.dart';
+import 'state/app_state.dart';
+import 'theme/app_theme.dart';
+import 'utils/validators.dart';
+import 'widgets/app_button.dart';
+import 'widgets/app_text_field.dart';
+import 'widgets/auth_layout.dart';
+import 'widgets/inline_message.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,181 +17,117 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _obscureText = true;
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _error = null);
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      // On success the app root swaps to the home screen by itself.
+      await AppScope.read(context).signIn(_username.text, _password.text);
+    } on Exception catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 40),
-                Text(
-                  'Welcome back\nto Coffee Shop',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF2C1E4A),
-                    height: 1.3,
-                  ),
+    return AuthLayout(
+      eyebrow: 'Welcome back',
+      title: 'Your daily ritual,\nbrewed with care.',
+      subtitle:
+          'Sign in to reorder your favourites and get them delivered warm.',
+      child: Form(
+        key: _formKey,
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Sign in', style: AppText.display(26)),
+              const SizedBox(height: 4),
+              Text(
+                'Enter your details to continue.',
+                style: AppText.body(14, color: AppColors.muted),
+              ),
+              const SizedBox(height: 20),
+              InlineMessage(message: _error),
+              const SizedBox(height: 8),
+              AppTextField(
+                label: 'Username',
+                controller: _username,
+                hint: 'e.g. tony',
+                icon: Icons.person_outline_rounded,
+                autofillHints: const [AutofillHints.username],
+                validator: Validators.username,
+              ),
+              const SizedBox(height: 18),
+              AppTextField(
+                label: 'Password',
+                controller: _password,
+                hint: 'Your password',
+                icon: Icons.lock_outline_rounded,
+                isPassword: true,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                validator: (v) => (v == null || v.isEmpty)
+                    ? 'Please enter your password'
+                    : null,
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 28),
+              AppButton(
+                label: 'Sign in',
+                loading: _loading,
+                onPressed: _submit,
+                trailing: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppColors.cream,
+                  size: 20,
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  'Sign up with',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const FaIcon(FontAwesomeIcons.google, color: Colors.red, size: 20),
-                        label: Text(
-                          'Google',
-                          style: GoogleFonts.poppins(color: Colors.grey.shade600),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: Colors.grey.shade200,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const FaIcon(FontAwesomeIcons.facebookF, color: Colors.white, size: 20),
-                        label: Text(
-                          'Facebook',
-                          style: GoogleFonts.poppins(color: Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4267B2),
-                          elevation: 2,
-                          shadowColor: Colors.grey.shade200,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 40),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Username',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500),
-                      prefixIcon: Icon(Icons.person_outline, color: Colors.grey.shade600),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: TextField(
-                    obscureText: _obscureText,
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500),
-                      prefixIcon: Icon(Icons.key_outlined, color: Colors.grey.shade600),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                          color: Colors.grey.shade600,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => const HomePage()),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5A2A82),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      'Login',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
-                      'Don\'t have an account yet? ',
-                      style: GoogleFonts.poppins(color: Colors.grey.shade500),
+                      'New here? ',
+                      style: AppText.body(14, color: AppColors.muted),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const RegisterPage()),
-                        );
-                      },
-                      child: Text(
-                        'Register',
-                        style: GoogleFonts.poppins(
-                          color: Colors.lightBlue,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterPage(),
+                              ),
+                            ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.copperDeep,
+                        textStyle: AppText.body(14, weight: FontWeight.w700),
                       ),
+                      child: const Text('Create an account'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 40),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

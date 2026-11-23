@@ -1,153 +1,372 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import 'checkout_sheet.dart';
+import 'data/order.dart';
+import 'state/app_state.dart';
+import 'theme/app_theme.dart';
+import 'utils/format.dart';
+import 'widgets/app_button.dart';
+import 'widgets/coffee_art.dart';
+import 'widgets/empty_state.dart';
+import 'widgets/fade_slide_in.dart';
+import 'widgets/feedback.dart';
+import 'widgets/page_frame.dart';
+import 'widgets/pressable.dart';
+import 'widgets/quantity_stepper.dart';
+
+/// Basket tab: editable order lines, a price summary and checkout.
 class BasketPage extends StatelessWidget {
   const BasketPage({super.key});
 
+  void _remove(BuildContext context, CartLine line) {
+    final state = AppScope.read(context);
+    state.remove(line);
+    showToast(
+      context,
+      '${line.coffee.name} removed',
+      icon: Icons.delete_outline_rounded,
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () => state.restore(line),
+      ),
+    );
+  }
+
+  Future<void> _clear(BuildContext context) async {
+    final state = AppScope.read(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Empty your basket?', style: AppText.display(22)),
+        content: Text(
+          'All ${state.itemCount} items will be removed.',
+          style: AppText.body(14, color: AppColors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Empty basket'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) state.clearCart();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          // Top App Bar Area
-          Container(
-            color: const Color(0xFF5A2A82),
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 16,
-              bottom: 24,
-              left: 24,
-              right: 24,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
+    final state = AppScope.of(context);
+    final lines = state.cart;
+
+    return SafeArea(
+      bottom: false,
+      child: PageFrame(
+        maxWidth: 640,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.arrow_back_ios, size: 16, color: Color(0xFF2C1E4A)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Go back',
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFF2C1E4A),
-                            fontWeight: FontWeight.w500,
+                        Text('Your basket', style: AppText.display(30)),
+                        if (lines.isNotEmpty)
+                          Text(
+                            '${state.itemCount} ${state.itemCount == 1 ? 'item' : 'items'}',
+                            style: AppText.body(13, color: AppColors.muted),
                           ),
-                        ),
                       ],
                     ),
                   ),
-                ),
-                Text(
-                  'My Basket',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                // Invisible box to balance the row for centering the title
-                const SizedBox(width: 80),
-              ],
+                  if (lines.isNotEmpty)
+                    TextButton(
+                      onPressed: () => _clear(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.muted,
+                      ),
+                      child: const Text('Clear'),
+                    ),
+                ],
+              ),
             ),
-          ),
-          
-          // List of items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              children: [
-                _buildBasketItem(
-                  title: 'Caramel Macchiato',
-                  quantity: '2 cups',
-                  price: 'Rp 70.000',
-                  iconColor: Colors.brown.shade100,
-                ),
-                Divider(color: Colors.grey.shade100, thickness: 1, height: 1),
-                _buildBasketItem(
-                  title: 'Vanilla Latte',
-                  quantity: '1 cup',
-                  price: 'Rp 30.000',
-                  iconColor: Colors.orange.shade100,
-                ),
-                Divider(color: Colors.grey.shade100, thickness: 1, height: 1),
-                _buildBasketItem(
-                  title: 'Espresso Arabica',
-                  quantity: '3 cups',
-                  price: 'Rp 75.000',
-                  iconColor: Colors.brown.shade200,
-                ),
-              ],
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: AppMotion.medium,
+                child: lines.isEmpty
+                    ? EmptyState(
+                        key: const ValueKey('empty'),
+                        icon: Icons.shopping_bag_outlined,
+                        title: 'Your basket is empty',
+                        message: state.orders.isEmpty
+                            ? 'Pick something warm from the menu to get started.'
+                            : 'Pick something new, or repeat a past order from the Orders tab.',
+                        actionLabel: 'Browse the menu',
+                        onAction: () => state.selectTab(HomeTabs.menu),
+                      )
+                    : ListView(
+                        key: const ValueKey('list'),
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                        children: [
+                          _FreeDeliveryProgress(
+                            remaining: state.untilFreeDelivery,
+                          ),
+                          const SizedBox(height: 12),
+                          for (final (i, line) in lines.indexed)
+                            FadeSlideIn(
+                              key: ValueKey(line.key),
+                              delay: Duration(milliseconds: 40 * i),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Dismissible(
+                                  key: ValueKey('dismiss-${line.key}'),
+                                  direction: DismissDirection.endToStart,
+                                  onDismissed: (_) => _remove(context, line),
+                                  background: const _DismissBackground(),
+                                  child: _BasketLine(
+                                    line: line,
+                                    onQuantity: (q) =>
+                                        state.setQuantity(line, q),
+                                    onRemove: () => _remove(context, line),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tip: swipe an item left to remove it.',
+                            textAlign: TextAlign.center,
+                            style: AppText.body(12, color: AppColors.muted),
+                          ),
+                          const SizedBox(height: 20),
+                          OrderSummary(
+                            subtotal: state.subtotal,
+                            delivery: state.deliveryFor(Fulfilment.delivery),
+                            deliveryCaption: 'Pickup is always free',
+                          ),
+                        ],
+                      ),
+              ),
             ),
-          ),
-          
-          // Bottom Checkout Area
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Total',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF2C1E4A),
+            // Checkout stays pinned just above the floating nav bar.
+            AnimatedSize(
+              duration: AppMotion.medium,
+              curve: AppMotion.curve,
+              child: lines.isEmpty
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        12,
+                        24,
+                        navBarClearance(context),
+                      ),
+                      child: AppButton(
+                        label: 'Checkout',
+                        onPressed: () => showCheckout(context),
+                        trailing: Text(
+                          // Matches the summary's total (delivery estimate).
+                          formatRupiah(state.totalFor(Fulfilment.delivery)),
+                          style: AppText.body(
+                            15,
+                            weight: FontWeight.w700,
+                            color: AppColors.copperSoft,
+                          ),
+                        ),
                       ),
                     ),
-                    Text(
-                      'Rp 175.000',
-                      style: GoogleFonts.poppins(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF2C1E4A),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Nudges toward the free-delivery threshold with a progress bar.
+class _FreeDeliveryProgress extends StatelessWidget {
+  const _FreeDeliveryProgress({required this.remaining});
+
+  final int remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final unlocked = remaining == 0;
+    final progress = 1 - remaining / Pricing.freeDeliveryThreshold;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: unlocked
+            ? AppColors.success.withValues(alpha: 0.1)
+            : AppColors.copperSoft,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                unlocked
+                    ? Icons.check_circle_rounded
+                    : Icons.delivery_dining_rounded,
+                size: 18,
+                color: unlocked ? AppColors.success : AppColors.copperDeep,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  unlocked
+                      ? 'You\'ve unlocked free delivery'
+                      : 'Add ${formatRupiah(remaining)} more for free delivery',
+                  style: AppText.body(
+                    13,
+                    weight: FontWeight.w600,
+                    color: unlocked ? AppColors.success : AppColors.copperDeep,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: progress.clamp(0.0, 1.0)),
+              duration: AppMotion.slow,
+              curve: AppMotion.curve,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 6,
+                backgroundColor: AppColors.surface,
+                color: unlocked ? AppColors.success : AppColors.copper,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DismissBackground extends StatelessWidget {
+  const _DismissBackground();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    alignment: Alignment.centerRight,
+    padding: const EdgeInsets.only(right: 24),
+    decoration: BoxDecoration(
+      color: AppColors.danger,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+    ),
+    child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+  );
+}
+
+class _BasketLine extends StatelessWidget {
+  const _BasketLine({
+    required this.line,
+    required this.onQuantity,
+    required this.onRemove,
+  });
+
+  final CartLine line;
+  final ValueChanged<int> onQuantity;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.soft,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: line.coffee.tone.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: CoffeeArt(coffee: line.coffee, size: 48, hero: false),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        line.coffee.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.display(16),
+                      ),
+                    ),
+                    Pressable(
+                      onTap: onRemove,
+                      scale: 0.85,
+                      semanticLabel: 'Remove ${line.coffee.name}',
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: AppColors.muted,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    _showCheckoutBottomSheet(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5A2A82),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                Text(
+                  '${line.size.label} · ${formatRupiah(line.unitPrice)}',
+                  style: AppText.body(12, color: AppColors.muted),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    QuantityStepper(
+                      value: line.quantity,
+                      onChanged: onQuantity,
+                      max: AppState.maxQuantity,
+                      compact: true,
                     ),
-                  ),
-                  child: Text(
-                    'Checkout',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.fast,
+                        layoutBuilder: (current, previous) => Stack(
+                          alignment: Alignment.centerRight,
+                          children: [...previous, ?current],
+                        ),
+                        child: FittedBox(
+                          key: ValueKey(line.total),
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            formatRupiah(line.total),
+                            style: AppText.body(15, weight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -156,204 +375,80 @@ class BasketPage extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildBasketItem({
-    required String title,
-    required String quantity,
-    required String price,
-    required Color iconColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+/// Receipt-style price breakdown shared by basket, checkout and order detail.
+class OrderSummary extends StatelessWidget {
+  const OrderSummary({
+    super.key,
+    required this.subtotal,
+    required this.delivery,
+    this.deliveryLabel = 'Delivery',
+    this.deliveryCaption,
+  });
+
+  final int subtotal;
+  final int delivery;
+  final String deliveryLabel;
+  final String? deliveryCaption;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(
+      String label,
+      String value, {
+      bool strong = false,
+      String? caption,
+    }) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          // Image placeholder
-          Container(
-            height: 60,
-            width: 60,
-            decoration: BoxDecoration(
-              color: iconColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.coffee, color: Colors.brown, size: 30),
-          ),
-          const SizedBox(width: 16),
-          // Texts
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF2C1E4A),
-                  ),
+                  label,
+                  style: strong
+                      ? AppText.body(15, weight: FontWeight.w700)
+                      : AppText.body(14, color: AppColors.muted),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  quantity,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
+                if (caption != null)
+                  Text(
+                    caption,
+                    style: AppText.body(11, color: AppColors.muted),
                   ),
-                ),
               ],
             ),
           ),
-          // Price
           Text(
-            price,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF2C1E4A),
-            ),
+            value,
+            style: strong
+                ? AppText.display(20)
+                : AppText.body(14, weight: FontWeight.w600),
           ),
         ],
       ),
     );
-  }
 
-  void _showCheckoutBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Close Button
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close, color: Color(0xFF2C1E4A)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // White Sheet
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(32),
-                    topRight: Radius.circular(32),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Delivery address',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF2C1E4A),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: '10th avenue, Lekki, Lagos State',
-                          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Number we can call',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF2C1E4A),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          hintText: '09090605708',
-                          hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: const BorderSide(color: Color(0xFF5A2A82)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Pay on delivery',
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF5A2A82),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: const BorderSide(color: Color(0xFF5A2A82)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Pay with card',
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF5A2A82),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      decoration: BoxDecoration(
+        color: AppColors.sand,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        children: [
+          row('Subtotal', formatRupiah(subtotal)),
+          row(
+            deliveryLabel,
+            delivery == 0 ? 'Free' : formatRupiah(delivery),
+            caption: deliveryCaption,
           ),
-        );
-      },
+          const Divider(color: AppColors.line, height: 20),
+          row('Total', formatRupiah(subtotal + delivery), strong: true),
+        ],
+      ),
     );
   }
 }

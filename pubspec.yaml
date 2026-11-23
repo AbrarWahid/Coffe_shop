@@ -37,6 +37,14 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   google_fonts: ^8.2.1
   device_preview: ^3.0.0
+  shared_preferences: ^2.5.6
+  crypto: ^3.0.7
+
+# Local copy of device_preview 3.0.0 with the Flutter 3.50 resetInternalState fix
+# (upstream PR aloisdeniel/flutter_device_preview#301). Remove once a fixed version is published.
+dependency_overrides:
+  device_preview:
+    path: packages/device_preview
 
 dev_dependencies:
   flutter_test:
